@@ -148,7 +148,12 @@ async function api(yol, secenek={}){
     }
   });
   if(!r.ok) throw new Error('HTTP ' + r.status);
-  return r.status === 204 ? null : r.json();
+  // PostgREST başarılı eklemede 201 döndürür ama GÖVDE BOŞTUR. Boş metni
+  // JSON olarak ayrıştırmaya kalkmak Safari'de "The string did not match
+  // the expected pattern" hatası veriyor — yani işlem başarılı olduğu hâlde
+  // kullanıcı hata görüyordu. Gövdeyi önce metin olarak alıp bakıyoruz.
+  const govde = await r.text();
+  return govde ? JSON.parse(govde) : null;
 }
 
 // ── Kaynak listesi ───────────────────────────────────────────────
@@ -228,7 +233,7 @@ const guncelle = (id, alanlar) =>
   api('/sources?id=eq.' + id, {method:'PATCH', body:JSON.stringify(alanlar)});
 
 // ── Kaynak ekleme ────────────────────────────────────────────────
-async function kuyruğaBirak(adres){
+async function kuyrugaBirak(adres){
   await api('/inbox', {
     method:'POST',
     body: JSON.stringify({kind:'add_source', payload:{url:adres}})
@@ -258,11 +263,11 @@ async function baslat(){
   if(paylasilan){
     $('#yeniAdres').value = paylasilan;
     try{
-      await kuyruğaBirak(paylasilan);
+      await kuyrugaBirak(paylasilan);
       mesaj('Kuyruğa bırakıldı. Sonucu Telegram\'dan bildireceğim.', 'iyi');
       $('#yeniAdres').value = '';
       history.replaceState({}, '', location.pathname);
-    }catch(e){ mesaj('Bırakılamadı: ' + e.message, 'kotu'); }
+    }catch(e){ mesaj('Bırakılamadı — ' + e.name + ': ' + e.message, 'kotu'); }
   }
 
   try{ await listele(); }
@@ -284,10 +289,10 @@ $('#ekle').onclick = async () => {
   const a = $('#yeniAdres').value.trim();
   if(!a) return;
   try{
-    await kuyruğaBirak(a);
+    await kuyrugaBirak(a);
     $('#yeniAdres').value = '';
     mesaj('Kuyruğa bırakıldı. Sonucu Telegram\'dan bildireceğim.', 'iyi');
-  }catch(e){ mesaj('Bırakılamadı: ' + e.message, 'kotu'); }
+  }catch(e){ mesaj('Bırakılamadı — ' + e.name + ': ' + e.message, 'kotu'); }
 };
 
 $('#ayarAc').onclick = e => {
