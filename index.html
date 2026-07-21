@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<title>sift</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --bg:#f6f7f9; --kart:#fff; --metin:#14161a; --soluk:#6b7280;
+    --cizgi:#e4e7ec; --vurgu:#2563eb; --iyi:#15803d; --kotu:#b91c1c; --uyari:#b45309;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0f1115; --kart:#171a21; --metin:#e8eaed; --soluk:#9aa1ad;
+      --cizgi:#262b34; --vurgu:#60a5fa; --iyi:#4ade80; --kotu:#f87171; --uyari:#fbbf24;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--metin);
+    font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .sarmal{max-width:640px; margin:0 auto; padding:16px}
+  header{display:flex; align-items:baseline; gap:10px; margin:8px 0 18px}
+  h1{font-size:22px; margin:0; letter-spacing:-.02em}
+  header span{color:var(--soluk); font-size:13px}
+  .kart{
+    background:var(--kart); border:1px solid var(--cizgi); border-radius:14px;
+    padding:14px; margin-bottom:10px;
+  }
+  .satir{display:flex; justify-content:space-between; align-items:flex-start; gap:12px}
+  .ad{font-weight:600}
+  .alt{color:var(--soluk); font-size:13px; margin-top:2px}
+  .rozet{
+    font-size:12px; padding:3px 9px; border-radius:999px; white-space:nowrap;
+    border:1px solid var(--cizgi);
+  }
+  .r-aktif{color:var(--iyi)} .r-susmus{color:var(--uyari)} .r-kapali{color:var(--soluk)}
+  .r-hata{color:var(--kotu)}
+  .dugmeler{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+  button{
+    font:inherit; font-size:14px; padding:9px 14px; border-radius:10px;
+    border:1px solid var(--cizgi); background:transparent; color:var(--metin);
+    cursor:pointer; min-height:40px;
+  }
+  button:active{transform:scale(.97)}
+  button.ana{background:var(--vurgu); border-color:var(--vurgu); color:#fff; font-weight:600}
+  input{
+    font:inherit; width:100%; padding:11px 13px; border-radius:10px;
+    border:1px solid var(--cizgi); background:var(--bg); color:var(--metin);
+  }
+  .bilgi{
+    padding:12px 14px; border-radius:12px; margin-bottom:12px; font-size:14px;
+    border:1px solid var(--cizgi); background:var(--kart);
+  }
+  .bilgi.iyi{border-color:var(--iyi); color:var(--iyi)}
+  .bilgi.kotu{border-color:var(--kotu); color:var(--kotu)}
+  .gizli{display:none}
+  footer{color:var(--soluk); font-size:12px; text-align:center; margin:22px 0 8px}
+  footer a{color:inherit}
+</style>
+</head>
+<body>
+<div class="sarmal">
+
+  <header>
+    <h1>sift</h1>
+    <span id="ozet"></span>
+  </header>
+
+  <div id="mesaj" class="bilgi gizli"></div>
+
+  <!-- Kurulum: anahtar tarayıcıda saklanır, repoya yazılmaz. -->
+  <section id="kurulum" class="kart gizli">
+    <div class="ad">Bağlantı</div>
+    <div class="alt">Anahtar yalnız bu telefonda saklanır. Depoda tutulmaz.</div>
+    <div style="margin-top:12px; display:grid; gap:8px">
+      <input id="url" placeholder="https://xxxx.supabase.co" autocomplete="off"
+             autocapitalize="off" spellcheck="false">
+      <input id="anahtar" placeholder="sb_publishable_..." autocomplete="off"
+             autocapitalize="off" spellcheck="false">
+      <button class="ana" id="kaydet">Kaydet</button>
+    </div>
+  </section>
+
+  <!-- Kaynak ekleme: yalnız adres gönderilir; feed keşfi ve erişilebilirlik
+       denetimi sunucuda, turun içinde yapılır. -->
+  <section id="ekleme" class="kart gizli">
+    <div class="ad">Kaynak ekle</div>
+    <div class="alt">Adresi bırak; kalanını sistem halleder, sonucu Telegram'dan söyler.</div>
+    <div style="margin-top:12px; display:grid; gap:8px">
+      <input id="yeniAdres" placeholder="https://ornek.com" inputmode="url"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="ana" id="ekle">Kuyruğa bırak</button>
+    </div>
+  </section>
+
+  <div id="liste"></div>
+
+  <footer>
+    <span id="ayarLink"><a href="#" id="ayarAc">bağlantı ayarları</a></span>
+  </footer>
+</div>
+
+<script>
+const AY = {
+  get url(){ return localStorage.getItem('sift_url') || ''; },
+  get key(){ return localStorage.getItem('sift_key') || ''; },
+  yaz(u,k){ localStorage.setItem('sift_url',u); localStorage.setItem('sift_key',k); },
+  get kurulu(){ return !!(this.url && this.key); }
+};
+
+const $ = s => document.querySelector(s);
+
+function mesaj(metin, tur){
+  const m = $('#mesaj');
+  m.textContent = metin;
+  m.className = 'bilgi ' + (tur||'');
+  if(!metin) m.classList.add('gizli');
+}
+
+async function api(yol, secenek={}){
+  const r = await fetch(AY.url.replace(/\/$/,'') + '/rest/v1' + yol, {
+    ...secenek,
+    headers: {
+      apikey: AY.key,
+      Authorization: 'Bearer ' + AY.key,
+      'Content-Type': 'application/json',
+      ...(secenek.headers||{})
+    }
+  });
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.status === 204 ? null : r.json();
+}
+
+// ── Kaynak listesi ───────────────────────────────────────────────
+// Yalnız izin verilen sütunlar isteniyor: adres ve feed adresi RLS
+// tarafından yasak, istenirse istek tümden reddedilir.
+const SUTUNLAR = 'id,slug,title,active,muted_until,interval_minutes,last_success,consecutive_failures';
+
+function gecenSure(iso){
+  if(!iso) return 'hiç';
+  const dk = Math.round((Date.now() - new Date(iso)) / 60000);
+  if(dk < 60) return dk + ' dk önce';
+  const sa = Math.round(dk/60);
+  if(sa < 48) return sa + ' saat önce';
+  return Math.round(sa/24) + ' gün önce';
+}
+
+function durum(k){
+  if(!k.active) return {sinif:'r-kapali', yazi:'kapalı'};
+  if(k.muted_until && new Date(k.muted_until) > new Date())
+    return {sinif:'r-susmus', yazi:'susturuldu'};
+  if(k.consecutive_failures > 0)
+    return {sinif:'r-hata', yazi:k.consecutive_failures + ' hata'};
+  return {sinif:'r-aktif', yazi:'aktif'};
+}
+
+async function listele(){
+  const kaynaklar = await api('/sources?select=' + SUTUNLAR + '&order=slug');
+  const kap = $('#liste');
+  kap.innerHTML = '';
+
+  const canli = kaynaklar.filter(k => k.active &&
+      !(k.muted_until && new Date(k.muted_until) > new Date())).length;
+  $('#ozet').textContent = canli + '/' + kaynaklar.length + ' kaynak izleniyor';
+
+  for(const k of kaynaklar){
+    const d = durum(k);
+    const kart = document.createElement('div');
+    kart.className = 'kart';
+    kart.innerHTML =
+      '<div class="satir">' +
+        '<div><div class="ad"></div>' +
+        '<div class="alt">' + k.interval_minutes + ' dk · son başarı ' +
+          gecenSure(k.last_success) + '</div></div>' +
+        '<span class="rozet ' + d.sinif + '">' + d.yazi + '</span>' +
+      '</div><div class="dugmeler"></div>';
+    // Başlık textContent ile: kaynak adı veriden geliyor, HTML olarak
+    // yorumlanmamalı.
+    kart.querySelector('.ad').textContent = k.title;
+
+    const dg = kart.querySelector('.dugmeler');
+    const sessiz = !k.active || (k.muted_until && new Date(k.muted_until) > new Date());
+    if(sessiz){
+      dg.appendChild(dugme('Aç', () => guncelle(k.id, {active:true, muted_until:null})));
+    }else{
+      dg.appendChild(dugme('1 gün sustur', () => guncelle(k.id, {muted_until:ileri(1)})));
+      dg.appendChild(dugme('1 hafta sustur', () => guncelle(k.id, {muted_until:ileri(7)})));
+      dg.appendChild(dugme('Kapat', () => guncelle(k.id, {active:false})));
+    }
+    kap.appendChild(kart);
+  }
+}
+
+function dugme(yazi, isle){
+  const b = document.createElement('button');
+  b.textContent = yazi;
+  b.onclick = async () => {
+    b.disabled = true;
+    try{ await isle(); await listele(); mesaj(''); }
+    catch(e){ mesaj('Olmadı: ' + e.message, 'kotu'); b.disabled = false; }
+  };
+  return b;
+}
+
+const ileri = gun => new Date(Date.now() + gun*864e5).toISOString();
+
+const guncelle = (id, alanlar) =>
+  api('/sources?id=eq.' + id, {method:'PATCH', body:JSON.stringify(alanlar)});
+
+// ── Kaynak ekleme ────────────────────────────────────────────────
+async function kuyruğaBirak(adres){
+  await api('/inbox', {
+    method:'POST',
+    body: JSON.stringify({kind:'add_source', payload:{url:adres}})
+  });
+}
+
+// Paylaş menüsünden gelen veri. Android uygulamalarının çoğu adresi `url`
+// yerine `text` içinde yollar, bu yüzden ikisine de bakılıyor.
+function paylasilanAdres(){
+  const p = new URLSearchParams(location.search);
+  const dogrudan = p.get('url');
+  if(dogrudan) return dogrudan;
+  const metin = (p.get('text') || '') + ' ' + (p.get('title') || '');
+  const bulunan = metin.match(/https?:\/\/[^\s]+/);
+  return bulunan ? bulunan[0] : '';
+}
+
+// ── Açılış ───────────────────────────────────────────────────────
+async function baslat(){
+  const kurulumGoster = !AY.kurulu;
+  $('#kurulum').classList.toggle('gizli', !kurulumGoster);
+  $('#ekleme').classList.toggle('gizli', kurulumGoster);
+  $('#ayarLink').classList.toggle('gizli', kurulumGoster);
+  if(kurulumGoster){ $('#url').value = AY.url; return; }
+
+  const paylasilan = paylasilanAdres();
+  if(paylasilan){
+    $('#yeniAdres').value = paylasilan;
+    try{
+      await kuyruğaBirak(paylasilan);
+      mesaj('Kuyruğa bırakıldı. Sonucu Telegram\'dan bildireceğim.', 'iyi');
+      $('#yeniAdres').value = '';
+      history.replaceState({}, '', location.pathname);
+    }catch(e){ mesaj('Bırakılamadı: ' + e.message, 'kotu'); }
+  }
+
+  try{ await listele(); }
+  catch(e){ mesaj('Liste alınamadı: ' + e.message + ' — anahtar doğru mu?', 'kotu'); }
+}
+
+$('#kaydet').onclick = () => {
+  const u = $('#url').value.trim(), k = $('#anahtar').value.trim();
+  if(!u || !k) return mesaj('İkisi de gerekli.', 'kotu');
+  AY.yaz(u, k); mesaj(''); baslat();
+};
+
+$('#ekle').onclick = async () => {
+  const a = $('#yeniAdres').value.trim();
+  if(!a) return;
+  try{
+    await kuyruğaBirak(a);
+    $('#yeniAdres').value = '';
+    mesaj('Kuyruğa bırakıldı. Sonucu Telegram\'dan bildireceğim.', 'iyi');
+  }catch(e){ mesaj('Bırakılamadı: ' + e.message, 'kotu'); }
+};
+
+$('#ayarAc').onclick = e => {
+  e.preventDefault();
+  $('#kurulum').classList.remove('gizli');
+  $('#url').value = AY.url;
+};
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+baslat();
+</script>
+</body>
+</html>
