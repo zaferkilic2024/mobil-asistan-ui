@@ -288,11 +288,16 @@ $('#kaydet').onclick = () => {
 $('#ekle').onclick = async () => {
   const a = $('#yeniAdres').value.trim();
   if(!a) return;
+  // Düğme kilitleniyor: hata görünce tekrar basmak kuyruğa aynı adresi
+  // birden çok kez bırakıyordu.
+  const d = $('#ekle');
+  d.disabled = true;
   try{
     await kuyrugaBirak(a);
     $('#yeniAdres').value = '';
     mesaj('Kuyruğa bırakıldı. Sonucu Telegram\'dan bildireceğim.', 'iyi');
   }catch(e){ mesaj('Bırakılamadı — ' + e.name + ': ' + e.message, 'kotu'); }
+  finally{ d.disabled = false; }
 };
 
 $('#ayarAc').onclick = e => {
