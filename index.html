@@ -123,8 +123,22 @@ function mesaj(metin, tur){
   if(!metin) m.classList.add('gizli');
 }
 
+// Adres bozuksa fetch ham tarayıcı hatası fırlatıyor ("String did not match
+// the expected pattern" gibi) ve kullanıcı neyi yanlış yaptığını anlamıyor.
+// Önce kendimiz bakıp anlaşılır bir şey söylüyoruz.
+function adresDogrula(u){
+  let a;
+  try{ a = new URL(u); }
+  catch{ throw new Error('Supabase adresi geçersiz. Örnek: https://abcdefgh.supabase.co'); }
+  if(!/^https?:$/.test(a.protocol))
+    throw new Error('Adres https:// ile başlamalı.');
+  if(a.hostname.endsWith('supabase.com'))
+    throw new Error('Bu panel adresi. Settings → API\'deki "Project URL" gerekiyor: https://xxx.supabase.co');
+  return a.origin;
+}
+
 async function api(yol, secenek={}){
-  const r = await fetch(AY.url.replace(/\/$/,'') + '/rest/v1' + yol, {
+  const r = await fetch(adresDogrula(AY.url) + '/rest/v1' + yol, {
     ...secenek,
     headers: {
       apikey: AY.key,
@@ -258,6 +272,11 @@ async function baslat(){
 $('#kaydet').onclick = () => {
   const u = $('#url').value.trim(), k = $('#anahtar').value.trim();
   if(!u || !k) return mesaj('İkisi de gerekli.', 'kotu');
+  // Kaydetmeden önce doğrula: yanlış adres kaydedilirse her ekranda
+  // anlamsız hata verir ve kullanıcı nereye bakacağını bilemez.
+  try{ adresDogrula(u); }catch(e){ return mesaj(e.message, 'kotu'); }
+  if(!k.startsWith('sb_publishable_') && !k.startsWith('eyJ'))
+    return mesaj('Bu anahtar publishable görünmüyor. sb_publishable_... ile başlamalı.', 'kotu');
   AY.yaz(u, k); mesaj(''); baslat();
 };
 
